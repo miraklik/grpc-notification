@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package notification;
+
+option go_package = "api/protobuf/notification";
+
+service NotificationService {
+    rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}
+
+message SendNotificationRequest  {
+    string user_id = 1;
+    string type = 2;
+    string message = 3;
+    int32 priority = 4;
+    int64 scheduled_at = 5;
+}
+
+message SendNotificationResponse {
+    string notification_id = 1;
+}
+
+message GetStatusRequest {
+    string notification_id = 1;
+}
+
+message GetStatusResponse {
+    string status = 1; 
+    int32 attempts = 2;
+    string last_error = 3;
+    int64 delivered_at = 4;
+}

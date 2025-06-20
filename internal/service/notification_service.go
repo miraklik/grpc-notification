@@ -7,15 +7,15 @@ import (
 	"gorm.io/gorm"
 )
 
-type NotesService struct {
+type NotificationsService struct {
 	db *gorm.DB
 }
 
-func NewNotesService(db *gorm.DB) *NotesService {
-	return &NotesService{db: db}
+func NewNotificationsService(db *gorm.DB) *NotificationsService {
+	return &NotificationsService{db: db}
 }
 
-func (s *NotesService) CreateNote(note *models.Notification) error {
+func (s *NotificationsService) CreateNote(note *models.Notification) error {
 	if err := s.db.Create(note).Error; err != nil {
 		log.Printf("Error creating note: %v", err)
 		return err
@@ -25,7 +25,7 @@ func (s *NotesService) CreateNote(note *models.Notification) error {
 	return nil
 }
 
-func (s *NotesService) GetAllNotes() ([]*models.Notification, error) {
+func (s *NotificationsService) GetAllNotes() ([]*models.Notification, error) {
 	var notes []*models.Notification
 	if err := s.db.Find(&notes).Error; err != nil {
 		log.Printf("Error getting notes: %v", err)
@@ -35,7 +35,7 @@ func (s *NotesService) GetAllNotes() ([]*models.Notification, error) {
 	return notes, nil
 }
 
-func (s *NotesService) GetNotesById(id int) (*models.Notification, error) {
+func (s *NotificationsService) GetNotesById(id string) (*models.Notification, error) {
 	var note *models.Notification
 	if err := s.db.Find(&note).Where("id = ?", id).Error; err != nil {
 		log.Printf("Error getting note: %v", err)
@@ -45,7 +45,7 @@ func (s *NotesService) GetNotesById(id int) (*models.Notification, error) {
 	return note, nil
 }
 
-func (s *NotesService) UpdateNote(id int, note *models.Notification) error {
+func (s *NotificationsService) UpdateNote(id int, note *models.Notification) error {
 	if err := s.db.Where("id = ?", id).Updates(note).Error; err != nil {
 		log.Printf("Error updating note: %v", err)
 		return err
@@ -55,7 +55,7 @@ func (s *NotesService) UpdateNote(id int, note *models.Notification) error {
 	return nil
 }
 
-func (s *NotesService) DeleteNote(id int) error {
+func (s *NotificationsService) DeleteNote(id int) error {
 	if err := s.db.Delete(&models.Notification{}, id).Error; err != nil {
 		log.Printf("Error deleting note: %v", err)
 		return err

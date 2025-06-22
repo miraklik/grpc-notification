@@ -118,14 +118,19 @@ func (p *Pool) Start() {
 	p.workers = make([]*Worker, p.size)
 
 	for i := 0; i < p.size; i++ {
-		worker := &Worker{}
+		worker := &Worker{
+			id:       i,
+			queue:    p.queue,
+			services: p.services,
+			channel:  p.channels,
+		}
 
 		p.workers[i] = worker
 		p.wg.Add(1)
-		go func() {
+		go func(w *Worker) {
 			defer p.wg.Done()
-			worker.Run(p.ctx)
-		}()
+			w.Run(p.ctx)
+		}(worker)
 	}
 
 	log.Printf("Started %d worker", p.size)

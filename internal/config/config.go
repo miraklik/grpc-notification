@@ -15,10 +15,6 @@ type Config struct {
 		Password string
 		Database string
 	}
-
-	Nats struct {
-		NatsURL string
-	}
 }
 
 func LoadConfig() (*Config, error) {
@@ -35,8 +31,6 @@ func LoadConfig() (*Config, error) {
 	cfg.Database.User = os.Getenv("DB_USER")
 	cfg.Database.Password = os.Getenv("DB_PASS")
 	cfg.Database.Database = os.Getenv("DB_NAME")
-
-	cfg.Nats.NatsURL = os.Getenv("NATS_URL")
 
 	return &cfg, nil
 }

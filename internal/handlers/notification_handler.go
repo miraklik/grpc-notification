@@ -5,16 +5,21 @@ import (
 	"errors"
 	"log"
 	"notification_service/internal/models"
+	"notification_service/internal/queue"
 	"notification_service/internal/service"
 	"time"
 )
 
 type NotificationHandler struct {
 	services *service.NotificationsService
+	queue    *queue.Queue
 }
 
-func NewNotificationHandler(services *service.NotificationsService) *NotificationHandler {
-	return &NotificationHandler{services: services}
+func NewNotificationHandler(services *service.NotificationsService, queue *queue.Queue) *NotificationHandler {
+	return &NotificationHandler{
+		services: services,
+		queue:    queue,
+	}
 }
 
 func (n *NotificationHandler) SendNotification(ctx context.Context, userID, notType, message string, priority int32, scheduledAt int64) (string, error) {
@@ -65,6 +70,8 @@ func (n *NotificationHandler) SendNotification(ctx context.Context, userID, notT
 		log.Println("Error creating note: ", err)
 		return "", err
 	}
+
+	n.queue.Push(notification)
 
 	return notification.ID, nil
 }

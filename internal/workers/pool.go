@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"log"
+	"notification_service/internal/channel"
 	"notification_service/internal/models"
 	"notification_service/internal/queue"
 	"notification_service/internal/service"
@@ -12,25 +13,29 @@ import (
 )
 
 type Worker struct {
-	id      int
-	queue   *queue.Queue
-	storage *service.NotificationsService
+	id       int
+	queue    *queue.Queue
+	services *service.NotificationsService
+	channel  map[models.NotificationType]channel.NotificationChannel
 }
 
 type Pool struct {
-	size    int
-	queue   *queue.Queue
-	workers []*Worker
-	wg      sync.WaitGroup
-	ctx     context.Context
-	cancel  context.CancelFunc
+	size     int
+	queue    *queue.Queue
+	services *service.NotificationsService
+	channels map[models.NotificationType]channel.NotificationChannel
+	workers  []*Worker
+	wg       sync.WaitGroup
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
-func NewWorker(id int, queue *queue.Queue, storage *service.NotificationsService) *Worker {
+func NewWorker(id int, queue *queue.Queue, services *service.NotificationsService, channels map[models.NotificationType]channel.NotificationChannel) *Worker {
 	return &Worker{
-		id:      id,
-		queue:   queue,
-		storage: storage,
+		id:       id,
+		queue:    queue,
+		services: services,
+		channel:  channels,
 	}
 }
 
@@ -42,9 +47,13 @@ func (w *Worker) Run(ctx context.Context) {
 			return
 		default:
 			notification := w.queue.Pop()
-			if notification != nil {
-				log.Printf("Worker %d received notification: %s", w.id, notification.Message)
+			if notification == nil {
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
+
+			log.Printf("Worker %d received notification: %s", w.id, notification.Message)
+			go w.proccessWorker(ctx, notification)
 		}
 	}
 }
@@ -57,19 +66,51 @@ func (w *Worker) proccessWorker(ctx context.Context, notification *models.Notifi
 		log.Println("Error converting notification ID to int: ", err)
 		return
 	}
-	w.storage.UpdateNote(notificationID, notification)
+	w.services.UpdateNote(notificationID, notification)
 
+	channel, exists := w.channel[notification.Type]
+	if !exists {
+		notification.Status = models.StatusFailed
+		notification.LastError = "Invalid notification type: " + string(notification.Type)
+		notification.UpdatedAt = time.Now()
+		w.services.UpdateNote(notificationID, notification)
+	}
+
+	err = channel.Send(ctx, notification)
+	if err != nil {
+		notification.LastError = err.Error()
+		notification.UpdatedAt = time.Now()
+
+		if notification.Attempts < 3 {
+			notification.Status = models.StatusRetrying
+			w.services.UpdateNote(notificationID, notification)
+			w.queue.Push(notification)
+		} else {
+			notification.Status = models.StatusFailed
+			w.services.UpdateNote(notificationID, notification)
+		}
+	}
+	notification.Status = models.StatusSent
+	notification.UpdatedAt = time.Now()
+	w.services.UpdateNote(notificationID, notification)
 }
 
-func NewPool(size int, queue *queue.Queue) *Pool {
+func NewPool(size int, queue *queue.Queue, services *service.NotificationsService) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	channelMap := make(map[models.NotificationType]channel.NotificationChannel)
+	channelMap[models.TypeEmail] = channel.NewEmailChannel()
+	channelMap[models.TypePush] = channel.NewPushChannel()
+	channelMap[models.TypeSMS] = channel.NewSmsChannel()
+
 	return &Pool{
-		size:   size,
-		queue:  queue,
-		wg:     sync.WaitGroup{},
-		ctx:    ctx,
-		cancel: cancel,
+		size:     size,
+		queue:    queue,
+		services: services,
+		channels: channelMap,
+		wg:       sync.WaitGroup{},
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 }
 
@@ -86,6 +127,8 @@ func (p *Pool) Start() {
 			worker.Run(p.ctx)
 		}()
 	}
+
+	log.Printf("Started %d worker", p.size)
 }
 
 func (p *Pool) Stop() {

@@ -7,7 +7,9 @@ import (
 	pb "notification_service/api/protobuf/notification"
 	"notification_service/internal/database"
 	"notification_service/internal/handlers"
+	"notification_service/internal/queue"
 	"notification_service/internal/service"
+	"notification_service/internal/workers"
 
 	"google.golang.org/grpc"
 )
@@ -34,25 +36,37 @@ func (s *Server) GetStatus(ctx context.Context, req *pb.GetStatusRequest) (*pb.G
 		return nil, err
 	}
 
+	var deliveredAt int64
+	if !notification.DeliveredAt.IsZero() {
+		deliveredAt = notification.DeliveredAt.Unix()
+	}
+
 	return &pb.GetStatusResponse{
 		Status:      string(notification.Status),
 		Attempts:    notification.Attempts,
 		LastError:   notification.LastError,
-		DeliveredAt: notification.DeliveredAt.Unix(),
+		DeliveredAt: deliveredAt,
 	}, nil
 }
 
 func main() {
 	db, err := database.ConnectDB()
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		log.Printf("Error connecting to database: %v", err)
+		return
 	}
+	queue := queue.NewQueue()
 	notificationService := service.NewNotificationsService(db)
-	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService, queue)
+
+	workerPool := workers.NewPool(5, queue, notificationService)
+	workerPool.Start()
+	defer workerPool.Stop()
 
 	listen, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		log.Printf("Failed to listen: %v", err)
+		return
 	}
 
 	grpcServer := grpc.NewServer()

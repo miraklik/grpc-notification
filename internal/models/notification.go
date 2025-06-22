@@ -23,8 +23,8 @@ const (
 )
 
 type Notification struct {
-	ID          string             `json:"id"`
-	UserID      string             `json:"user_id"`
+	ID          int64              `json:"id" gorm:"primaryKey;autoIncrement"`
+	UserID      int64              `json:"user_id"`
 	Type        NotificationType   `json:"type"`
 	Message     string             `json:"message"`
 	Priority    int32              `json:"priority"`

@@ -35,9 +35,9 @@ func (s *NotificationsService) GetAllNotes() ([]*models.Notification, error) {
 	return notes, nil
 }
 
-func (s *NotificationsService) GetNotesById(id string) (*models.Notification, error) {
+func (s *NotificationsService) GetNotesById(id int64) (*models.Notification, error) {
 	var note *models.Notification
-	if err := s.db.Find(&note).Where("id = ?", id).Error; err != nil {
+	if err := s.db.Where("id = ?", id).First(&note).Error; err != nil {
 		log.Printf("Error getting note: %v", err)
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (s *NotificationsService) GetNotesById(id string) (*models.Notification, er
 	return note, nil
 }
 
-func (s *NotificationsService) UpdateNote(id int, note *models.Notification) error {
+func (s *NotificationsService) UpdateNote(id int64, note *models.Notification) error {
 	if err := s.db.Where("id = ?", id).Updates(note).Error; err != nil {
 		log.Printf("Error updating note: %v", err)
 		return err

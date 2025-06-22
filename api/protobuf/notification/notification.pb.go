@@ -23,7 +23,7 @@ const (
 
 type SendNotificationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
 	Priority      int32                  `protobuf:"varint,4,opt,name=priority,proto3" json:"priority,omitempty"`
@@ -62,11 +62,11 @@ func (*SendNotificationRequest) Descriptor() ([]byte, []int) {
 	return file_api_protobuf_notification_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *SendNotificationRequest) GetUserId() string {
+func (x *SendNotificationRequest) GetUserId() int64 {
 	if x != nil {
 		return x.UserId
 	}
-	return ""
+	return 0
 }
 
 func (x *SendNotificationRequest) GetType() string {
@@ -99,7 +99,7 @@ func (x *SendNotificationRequest) GetScheduledAt() int64 {
 
 type SendNotificationResponse struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	NotificationId string                 `protobuf:"bytes,1,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
+	NotificationId int64                  `protobuf:"varint,1,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -134,16 +134,16 @@ func (*SendNotificationResponse) Descriptor() ([]byte, []int) {
 	return file_api_protobuf_notification_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *SendNotificationResponse) GetNotificationId() string {
+func (x *SendNotificationResponse) GetNotificationId() int64 {
 	if x != nil {
 		return x.NotificationId
 	}
-	return ""
+	return 0
 }
 
 type GetStatusRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	NotificationId string                 `protobuf:"bytes,1,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
+	NotificationId int64                  `protobuf:"varint,1,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -178,11 +178,11 @@ func (*GetStatusRequest) Descriptor() ([]byte, []int) {
 	return file_api_protobuf_notification_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetStatusRequest) GetNotificationId() string {
+func (x *GetStatusRequest) GetNotificationId() int64 {
 	if x != nil {
 		return x.NotificationId
 	}
-	return ""
+	return 0
 }
 
 type GetStatusResponse struct {
@@ -259,15 +259,15 @@ const file_api_protobuf_notification_proto_rawDesc = "" +
 	"\n" +
 	"\x1fapi/protobuf/notification.proto\x12\fnotification\"\x9f\x01\n" +
 	"\x17SendNotificationRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12\x1a\n" +
 	"\bpriority\x18\x04 \x01(\x05R\bpriority\x12!\n" +
 	"\fscheduled_at\x18\x05 \x01(\x03R\vscheduledAt\"C\n" +
 	"\x18SendNotificationResponse\x12'\n" +
-	"\x0fnotification_id\x18\x01 \x01(\tR\x0enotificationId\";\n" +
+	"\x0fnotification_id\x18\x01 \x01(\x03R\x0enotificationId\";\n" +
 	"\x10GetStatusRequest\x12'\n" +
-	"\x0fnotification_id\x18\x01 \x01(\tR\x0enotificationId\"\x89\x01\n" +
+	"\x0fnotification_id\x18\x01 \x01(\x03R\x0enotificationId\"\x89\x01\n" +
 	"\x11GetStatusResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x1a\n" +
 	"\battempts\x18\x02 \x01(\x05R\battempts\x12\x1d\n" +

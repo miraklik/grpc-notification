@@ -22,15 +22,15 @@ func NewNotificationHandler(services *service.NotificationsService, queue *queue
 	}
 }
 
-func (n *NotificationHandler) SendNotification(ctx context.Context, userID, notType, message string, priority int32, scheduledAt int64) (string, error) {
-	if userID == "" || message == "" || notType == "" {
+func (n *NotificationHandler) SendNotification(ctx context.Context, userID int64, notType, message string, priority int32, scheduledAt int64) (int64, error) {
+	if message == "" || notType == "" {
 		log.Println("Missing required fields: userID, message, type")
-		return "", nil
+		return 0, nil
 	}
 
 	if priority < 1 || priority > 5 {
 		log.Println("Priority must be between 1 and 5")
-		return "", errors.New("priority must be between 1 and 5")
+		return 0, errors.New("priority must be between 1 and 5")
 	}
 
 	var TypeNotes models.NotificationType
@@ -44,7 +44,7 @@ func (n *NotificationHandler) SendNotification(ctx context.Context, userID, notT
 		TypeNotes = models.TypeSMS
 	default:
 		log.Println("Invalid notification type")
-		return "", errors.New("invalid notification type")
+		return 0, errors.New("invalid notification type")
 	}
 
 	notification := &models.Notification{
@@ -68,7 +68,7 @@ func (n *NotificationHandler) SendNotification(ctx context.Context, userID, notT
 	err := n.services.CreateNote(notification)
 	if err != nil {
 		log.Println("Error creating note: ", err)
-		return "", err
+		return 0, err
 	}
 
 	n.queue.Push(notification)
@@ -76,12 +76,7 @@ func (n *NotificationHandler) SendNotification(ctx context.Context, userID, notT
 	return notification.ID, nil
 }
 
-func (n *NotificationHandler) GetStatus(ctx context.Context, notificationID string) (*models.Notification, error) {
-	if notificationID == "" {
-		log.Println("Missing required fields: notificationID")
-		return nil, errors.New("missing required fields: notificationID")
-	}
-
+func (n *NotificationHandler) GetStatus(ctx context.Context, notificationID int64) (*models.Notification, error) {
 	notification, err := n.services.GetNotesById(notificationID)
 	if err != nil {
 		log.Println("Error getting note: ", err)

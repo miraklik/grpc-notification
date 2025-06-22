@@ -7,7 +7,6 @@ import (
 	"notification_service/internal/models"
 	"notification_service/internal/queue"
 	"notification_service/internal/service"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -61,38 +60,33 @@ func (w *Worker) Run(ctx context.Context) {
 func (w *Worker) proccessWorker(ctx context.Context, notification *models.Notification) {
 	notification.Status = models.StatusInProgress
 	notification.UpdatedAt = time.Now()
-	notificationID, err := strconv.Atoi(notification.ID)
-	if err != nil {
-		log.Println("Error converting notification ID to int: ", err)
-		return
-	}
-	w.services.UpdateNote(notificationID, notification)
+	w.services.UpdateNote(notification.ID, notification)
 
 	channel, exists := w.channel[notification.Type]
 	if !exists {
 		notification.Status = models.StatusFailed
 		notification.LastError = "Invalid notification type: " + string(notification.Type)
 		notification.UpdatedAt = time.Now()
-		w.services.UpdateNote(notificationID, notification)
+		w.services.UpdateNote(notification.ID, notification)
 	}
 
-	err = channel.Send(ctx, notification)
+	err := channel.Send(ctx, notification)
 	if err != nil {
 		notification.LastError = err.Error()
 		notification.UpdatedAt = time.Now()
 
 		if notification.Attempts < 3 {
 			notification.Status = models.StatusRetrying
-			w.services.UpdateNote(notificationID, notification)
+			w.services.UpdateNote(notification.ID, notification)
 			w.queue.Push(notification)
 		} else {
 			notification.Status = models.StatusFailed
-			w.services.UpdateNote(notificationID, notification)
+			w.services.UpdateNote(notification.ID, notification)
 		}
 	}
 	notification.Status = models.StatusSent
 	notification.UpdatedAt = time.Now()
-	w.services.UpdateNote(notificationID, notification)
+	w.services.UpdateNote(notification.ID, notification)
 }
 
 func NewPool(size int, queue *queue.Queue, services *service.NotificationsService) *Pool {

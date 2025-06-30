@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"notification_service/internal/channel"
 	"notification_service/internal/models"
@@ -13,14 +14,14 @@ import (
 
 type Worker struct {
 	id       int
-	queue    *queue.Queue
+	queue    *queue.NatsQueue
 	services *service.NotificationsService
 	channel  map[models.NotificationType]channel.NotificationChannel
 }
 
 type Pool struct {
 	size     int
-	queue    *queue.Queue
+	queue    *queue.NatsQueue
 	services *service.NotificationsService
 	channels map[models.NotificationType]channel.NotificationChannel
 	workers  []*Worker
@@ -29,7 +30,7 @@ type Pool struct {
 	cancel   context.CancelFunc
 }
 
-func NewWorker(id int, queue *queue.Queue, services *service.NotificationsService, channels map[models.NotificationType]channel.NotificationChannel) *Worker {
+func NewWorker(id int, queue *queue.NatsQueue, services *service.NotificationsService, channels map[models.NotificationType]channel.NotificationChannel) *Worker {
 	return &Worker{
 		id:       id,
 		queue:    queue,
@@ -45,19 +46,36 @@ func (w *Worker) Run(ctx context.Context) {
 			log.Printf("Worker %d stopped", w.id)
 			return
 		default:
-			notification := w.queue.Pop()
-			if notification == nil {
-				time.Sleep(100 * time.Millisecond)
+			msg, err := w.queue.Pop(ctx)
+			if err != nil {
+				log.Printf("Error popping message: %v", err)
 				continue
 			}
 
-			log.Printf("Worker %d received notification: %s", w.id, notification.Message)
-			go w.proccessWorker(ctx, notification)
+			if msg == nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+
+			var n models.Notification
+			if err := json.Unmarshal(msg.Data, &n); err != nil {
+				_ = msg.Nak()
+				log.Printf("Error unmarshalling message: %v", err)
+				continue
+			}
+
+			if err := w.proccessWorker(ctx, &n); err != nil {
+				_ = msg.Nak()
+				log.Printf("Error processing worker: %v", err)
+				continue
+			} else {
+				_ = msg.Ack()
+			}
 		}
 	}
 }
 
-func (w *Worker) proccessWorker(ctx context.Context, notification *models.Notification) {
+func (w *Worker) proccessWorker(ctx context.Context, notification *models.Notification) error {
 	notification.Status = models.StatusInProgress
 	notification.UpdatedAt = time.Now()
 	w.services.UpdateNote(notification.ID, notification)
@@ -70,26 +88,21 @@ func (w *Worker) proccessWorker(ctx context.Context, notification *models.Notifi
 		w.services.UpdateNote(notification.ID, notification)
 	}
 
-	err := channel.Send(ctx, notification)
-	if err != nil {
+	if err := channel.Send(ctx, notification); err != nil {
 		notification.LastError = err.Error()
 		notification.UpdatedAt = time.Now()
-
-		if notification.Attempts < 3 {
-			notification.Status = models.StatusRetrying
-			w.services.UpdateNote(notification.ID, notification)
-			w.queue.Push(notification)
-		} else {
-			notification.Status = models.StatusFailed
-			w.services.UpdateNote(notification.ID, notification)
-		}
+		w.services.UpdateNote(notification.ID, notification)
+		return err
 	}
+
 	notification.Status = models.StatusSent
 	notification.UpdatedAt = time.Now()
 	w.services.UpdateNote(notification.ID, notification)
+
+	return nil
 }
 
-func NewPool(size int, queue *queue.Queue, services *service.NotificationsService) *Pool {
+func NewPool(size int, queue *queue.NatsQueue, services *service.NotificationsService) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	channelMap := make(map[models.NotificationType]channel.NotificationChannel)
@@ -132,7 +145,6 @@ func (p *Pool) Start() {
 
 func (p *Pool) Stop() {
 	p.cancel()
-	p.queue.Close()
 	p.wg.Wait()
 	log.Println("Pool stopped")
 }

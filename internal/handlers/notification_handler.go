@@ -12,10 +12,10 @@ import (
 
 type NotificationHandler struct {
 	services *service.NotificationsService
-	queue    *queue.Queue
+	queue    *queue.NatsQueue
 }
 
-func NewNotificationHandler(services *service.NotificationsService, queue *queue.Queue) *NotificationHandler {
+func NewNotificationHandler(services *service.NotificationsService, queue *queue.NatsQueue) *NotificationHandler {
 	return &NotificationHandler{
 		services: services,
 		queue:    queue,
@@ -71,7 +71,10 @@ func (n *NotificationHandler) SendNotification(ctx context.Context, userID int64
 		return 0, err
 	}
 
-	n.queue.Push(notification)
+	if err := n.queue.Push(notification); err != nil {
+		log.Println("Error pushing note to queue: ", err)
+		return 0, err
+	}
 
 	return notification.ID, nil
 }

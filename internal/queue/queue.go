@@ -1,101 +1,76 @@
 package queue
 
 import (
-	"container/heap"
+	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"notification_service/internal/models"
-	"sync"
+	"time"
+
+	"github.com/nats-io/nats.go"
 )
 
-type Item struct {
-	Notification *models.Notification
-	Index        int
+const (
+	streamName = "NOTIFICATIONS"
+	subjTmpl   = "notifications.p%d"
+)
+
+type NatsQueue struct {
+	jes       nats.JetStreamContext
+	consumers [5]*nats.Subscription
 }
 
-type NotificationQueue []*Item
-
-func (nq NotificationQueue) Len() int {
-	return len(nq)
-}
-
-func (nq NotificationQueue) Less(i, j int) bool {
-	return nq[i].Notification.Priority > nq[j].Notification.Priority
-}
-
-func (nq NotificationQueue) Swap(i, j int) {
-	nq[i], nq[j] = nq[j], nq[i]
-	nq[i].Index = i
-	nq[j].Index = j
-}
-
-func (nq *NotificationQueue) Push(x any) {
-	n := len(*nq)
-	item := x.(*Item)
-	item.Index = n
-	*nq = append(*nq, item)
-}
-
-func (nq *NotificationQueue) Pop() any {
-	old := *nq
-	n := len(old)
-	item := old[n-1]
-	item.Index = -1
-	*nq = old[0 : n-1]
-	return item
-}
-
-type Queue struct {
-	pq     *NotificationQueue
-	mu     *sync.Mutex
-	closed bool
-}
-
-func NewQueue() *Queue {
-	pq := make(NotificationQueue, 0)
-	heap.Init(&pq)
-	q := &Queue{
-		pq:     &pq,
-		mu:     &sync.Mutex{},
-		closed: false,
+func NewNatsQueue(url string) (*NatsQueue, error) {
+	nc, err := nats.Connect(url)
+	if err != nil {
+		log.Printf("Error connecting to nats: %v", err)
+		return nil, err
 	}
 
-	return q
+	js, _ := nc.JetStream()
+
+	_, _ = js.AddStream(&nats.StreamConfig{
+		Name:     streamName,
+		Subjects: []string{"notifications.*"},
+		Storage:  nats.FileStorage,
+	})
+
+	q := &NatsQueue{jes: js}
+
+	for p := 1; p <= 5; p++ {
+		subj := fmt.Sprintf(subjTmpl, p)
+		cons, err := js.PullSubscribe(subj, fmt.Sprintf("workers-p%d", p),
+			nats.PullMaxWaiting(128),
+			nats.ManualAck(),
+		)
+		if err != nil {
+			return nil, err
+		}
+		q.consumers[p-1] = cons
+	}
+	return q, nil
 }
 
-func (q *Queue) Push(notification *models.Notification) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	if q.closed {
-		log.Println("Queue is closed")
-		return
-	}
-
-	item := &Item{
-		Notification: notification,
-	}
-
-	heap.Push(q.pq, item)
+func (q *NatsQueue) Push(n *models.Notification) error {
+	data, _ := json.Marshal(n)
+	subj := fmt.Sprintf(subjTmpl, n.Priority)
+	_, err := q.jes.Publish(subj, data)
+	return err
 }
 
-func (q *Queue) Pop() *models.Notification {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	for q.pq.Len() > 0 {
-		item := heap.Pop(q.pq).(*Item)
-		return item.Notification
+func (q *NatsQueue) Pop(ctx context.Context) (*nats.Msg, error) {
+	for pri := 0; pri < 5; pri++ {
+		msgs, err := q.consumers[pri].Fetch(1, nats.Context(ctx), nats.MaxWait(100*time.Millisecond))
+		if err == nats.ErrTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(msgs) == 1 {
+			return msgs[0], nil
+		}
 	}
-
-	if q.closed {
-		log.Println("Queue is closed")
-		return nil
-	}
-
-	return nil
-}
-
-func (q *Queue) Close() {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	q.closed = true
+	return nil, nil
 }

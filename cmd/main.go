@@ -11,6 +11,7 @@ import (
 	"notification_service/internal/service"
 	"notification_service/internal/workers"
 
+	"github.com/nats-io/nats.go"
 	"google.golang.org/grpc"
 )
 
@@ -55,7 +56,11 @@ func main() {
 		log.Printf("Error connecting to database: %v", err)
 		return
 	}
-	queue := queue.NewQueue()
+	queue, err := queue.NewNatsQueue(nats.DefaultURL)
+	if err != nil {
+		log.Printf("Error connecting to queue: %v", err)
+		return
+	}
 	notificationService := service.NewNotificationsService(db)
 	notificationHandler := handlers.NewNotificationHandler(notificationService, queue)
 

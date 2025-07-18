@@ -1,0 +1,12 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name:  notification-service
+spec:
+  selector:
+    app:  notification-service
+  type:  LoadBalancer | ClusterIP | NodePort
+  ports:
+    port:  80
+    targetPort:  8080
+    nodePort: 30080
